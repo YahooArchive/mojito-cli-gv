@@ -1,0 +1,35 @@
+{
+  "name": "mojito-cli-gv",
+  "version": "0.0.1",
+  "description": "Provides the `gv` command for use with `mojito-cli`",
+  "main": "gv.js",
+  "dependencies": {
+    "npmlog": "0.0.2"  
+  },
+  "devDependencies": {
+    "tap": "~0.4.1"
+  },
+  "engines": {
+    "node": ">0.8",
+    "npm": ">1.1"
+  },
+  "scripts": {
+    "lint": "jshint {.,lib}/*.js",
+    "test": "tap tests/index.js",
+    "cover": "istanbul cover --dir artifacts/coverage tests",
+    "clean": "git clean -dfx {.,tests}/artifacts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/yahoo/gv.git"
+  },
+  "bugs": "https://github.com/yahoo/gv/issues",
+  "contributors": [
+    "Caridy Patino <caridy@gmail.com>",
+    "Drew Folta <drew@folta.net>",
+    "imalberto <imalberto@gmail.com>",
+    "Isao Yagi <isao@yahoo-inc.com>"
+  ],
+  "license": "BSD",
+  "keywords": []
+}
