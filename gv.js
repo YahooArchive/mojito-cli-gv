@@ -15,20 +15,16 @@
 //  * color-code or shape-code module types (from yui, mojito fw, app-level,
 //    mojits, affinity)
 
-var run,
-    test = {},
-    libpath = require('path'),
+var libpath = require('path'),
     libfs = require('fs'),
-    existsSync = libfs.existsSync || libpath.existsSync,
-    libutils = require(libpath.join(__dirname, '../../management/utils')),
-    Store = require(libpath.join(__dirname, '../../store')),
-    YUI = require('yui').YUI,
-    Y = YUI(),
+    existsSync = libfs.existsSync,
+    mkdirp = require('mkdirp').sync,
+    log = require('./lib/log'),
 
     MODE_ALL = parseInt('777', 8),
-
     artifactsDir = 'artifacts',
-    resultsDir = 'artifacts/gv';
+    resultsDir = 'artifacts/gv',
+    test = {};
 
 
 
@@ -414,9 +410,8 @@ function trace(graph, options) {
 }
 
 
-run = function(params, options, callback) {
-    var env,
-        root = test.appRoot || process.cwd(),
+function run(env, callback) {
+    var runtime,
         store,
         title,
         graph,
@@ -428,30 +423,42 @@ run = function(params, options, callback) {
         contents,
         file;
 
-    options = options || {};
-    env = options.client ? 'client' : 'server';
-
-    if (params.length) {
-        callback('Unknown extra parameters.');
+    if (!env.app) {
+        callback('No package.json, please re-try from your application’s directory.');
         return;
     }
 
+    if (!(env.app.dependencies && env.app.dependencies.mojito)) {
+        log.error('The current directory doesn’t appear to be a Mojito application.');
+        callback('Mojito isn’t a dependency in package.json. Try `npm i --save mojito`.');
+        return;
+    }
+
+    if (!env.mojito) {
+        callback('Mojito is not installed locally. Try `npm i mojito`');
+        return;
+    }
+
+    Store = require(libpath.join(env.mojito.path, 'lib/store'));
+    YUI = require(libpath.join(env.mojito.path, 'node_modules/yui')).YUI;
+    Y = YUI();
+
+    runtime = env.opts.client ? 'client' : 'server';
+
     // make results dir
-    if (!existsSync(libpath.join(root, artifactsDir))) {
-        libfs.mkdirSync(libpath.join(root, artifactsDir), MODE_ALL);
+    if (env.opts.directory) {
+        resultsDir = env.opts.directory;
     }
-    if (!existsSync(libpath.join(root, resultsDir))) {
-        libfs.mkdirSync(libpath.join(root, resultsDir), MODE_ALL);
-    }
+    mkdirp(resultsDir);
 
     // load details
     store = Store.createStore({
-        root: root,
+        root: env.cwd,
         context: {}
     });
 
     appConfigRes = store.getResourceVersions({id: 'config--application'})[0];
-    title = appConfigRes.source.pkg.name + '@' + appConfigRes.source.pkg.version + ' ' + env;
+    title = appConfigRes.source.pkg.name + '@' + appConfigRes.source.pkg.version + ' ' + runtime;
     graph = new Graph(title);
     graph.type = 'digraph';
 
@@ -481,18 +488,18 @@ run = function(params, options, callback) {
     graph.style.start = 'self';         // FDP,NEATO --
 
     ress = store.getResourceVersions({});
-    parseResources(env, graph, ress, options);
+    parseResources(runtime, graph, ress, env.opts);
 
     mojits = store.listAllMojits();
     mojits.push('shared');
     for (m = 0; m < mojits.length; m += 1) {
         mojit = mojits[m];
         ress = store.getResourceVersions({ mojit: mojit });
-        parseResources(env, graph, ress, options);
+        parseResources(runtime, graph, ress, env.opts);
     }
 
-    if (options.trace) {
-        trace(graph, options);
+    if (env.opts.trace) {
+        trace(graph, env.opts);
     }
 
     // generate graph
@@ -508,7 +515,7 @@ run = function(params, options, callback) {
                 node.style.color = '#CC0000';
                 node.style.fontcolor = '#AA0000';
                 node.style.fillcolor = '#FFDDDD';
-                if (node.name === options.trace) {
+                if (node.name === env.opts.trace) {
                     node.style.peripheries = 2;
                 }
             }
@@ -542,23 +549,22 @@ run = function(params, options, callback) {
             return true;
         }
     });
-    file = libpath.join(resultsDir, 'yui.' + env + '.dot');
-    libfs.writeFileSync(libpath.join(root, file), contents, 'utf-8');
+    file = libpath.join(resultsDir, 'yui.' + runtime + '.dot');
+    libfs.writeFileSync(libpath.join(env.cwd, file), contents, 'utf-8');
 
-    libutils.log('Dotfile generated.' +
+    log.info('Dotfile generated.' +
         ' To turn it into a graph, run the following:');
-    libutils.log('$ dot -Tgif ' + file + ' > ' +
-        libpath.join(resultsDir, 'yui.' + env + '.gif'));
+    log.info('$ dot -Tgif ' + file + ' > ' +
+        libpath.join(resultsDir, 'yui.' + runtime + '.gif'));
 
     test.graph = graph;
     callback();
 };
 
 
-/**
- * Standard usage string export.
- */
-exports.usage = 'mojito gv   // generates a GraphViz[1] file' +
+module.exports = run;
+
+module.exports.usage = 'mojito gv   // generates a GraphViz[1] file' +
     ' describing the dependencies\n' +
     '            // between the YUI modules\n' +
     '\n' +
@@ -574,11 +580,7 @@ exports.usage = 'mojito gv   // generates a GraphViz[1] file' +
     '\n' +
     '[1] http://en.wikipedia.org/wiki/Graphviz\n';
 
-
-/**
- * Standard options list export.
- */
-exports.options = [
+module.exports.options = [
     {
         longName: 'framework',
         shortName: 'f',
@@ -600,21 +602,3 @@ exports.options = [
         hasValue: true
     }
 ];
-
-
-/**
- * Standard run method hook export.
- */
-exports.run = run;
-
-
-exports.test = test;
-test.gvQuote = gvQuote;
-test.gvStyle = gvStyle;
-test.Node = Node;
-test.Edge = Edge;
-test.Graph = Graph;
-test.parseResources = parseResources;
-test.trace = trace;
-
-

@@ -4,6 +4,7 @@
   "description": "Provides the `gv` command for use with `mojito-cli`",
   "main": "gv.js",
   "dependencies": {
+    "mkdirp": "~0.3.5",
     "npmlog": "0.0.2"  
   },
   "devDependencies": {
